@@ -49,7 +49,12 @@ export const getAll = async (req: Request, res: Response) => {
     const collegeId = req.query.college_id
       ? parseInt(String(req.query.college_id), 10)
       : undefined;
-    const rows = await svc.getAllAcademicPrograms(collegeId);
+    const campusId = req.query.campus_id
+      ? parseInt(String(req.query.campus_id), 10)
+      : undefined;
+    const status =
+      typeof req.query.status === "string" ? req.query.status.trim() : undefined;
+    const rows = await svc.getAllAcademicPrograms(collegeId, campusId, status);
     res.json(rows);
   } catch (err) {
     console.error("academicPrograms:", err);
@@ -138,6 +143,20 @@ export const remove = async (req: Request, res: Response) => {
     res.json({ message: "Deleted" });
   } catch (err) {
     console.error("academicPrograms:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getMajorStudies = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "Invalid program id" });
+    }
+    const rows = await svc.getAcademicProgramMajorStudies(id);
+    res.json(rows);
+  } catch (err) {
+    console.error("academicPrograms getMajorStudies:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 };

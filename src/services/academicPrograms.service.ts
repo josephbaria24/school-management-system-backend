@@ -37,17 +37,33 @@ export const ensureAcademicProgramsTable = async () => {
   `);
 };
 
-export const getAllAcademicPrograms = async (collegeId?: number) => {
+export const getAllAcademicPrograms = async (
+  collegeId?: number,
+  campusId?: number,
+  status?: string
+) => {
   await ensureAcademicProgramsTable();
   let q = `
     SELECT p.*, c.college_code, c.college_name
     FROM academic_programs p
     JOIN colleges c ON p.college_id = c.id
   `;
-  const params: number[] = [];
+  const where: string[] = [];
+  const params: Array<number | string> = [];
   if (collegeId && Number.isFinite(collegeId)) {
-    q += " WHERE p.college_id = $1";
+    where.push(`p.college_id = $${params.length + 1}`);
     params.push(collegeId);
+  }
+  if (campusId && Number.isFinite(campusId)) {
+    where.push(`p.campus_id = $${params.length + 1}`);
+    params.push(campusId);
+  }
+  if (status && status.trim()) {
+    where.push(`LOWER(COALESCE(p.status, '')) = LOWER($${params.length + 1})`);
+    params.push(status.trim());
+  }
+  if (where.length > 0) {
+    q += ` WHERE ${where.join(" AND ")}`;
   }
   q += " ORDER BY p.program_code ASC";
   const r = await pool.query(q, params);
@@ -172,4 +188,54 @@ export const deleteAcademicProgram = async (id: number) => {
     [id]
   );
   return r.rows[0];
+};
+
+export const getAcademicProgramMajorStudies = async (programId: number) => {
+  await ensureAcademicProgramsTable();
+
+  // Primary source: current normalized curriculum + CHED discipline mapping.
+  const normalized = await pool.query(
+    `
+    SELECT DISTINCT
+      TRIM(COALESCE(cmd.major_discipline, pc.description, '')) AS major_study
+    FROM program_curriculums pc
+    LEFT JOIN ched_major_disciplines cmd ON cmd.id = pc.major_discipline_id
+    WHERE pc.academic_program_id = $1
+      AND TRIM(COALESCE(cmd.major_discipline, pc.description, '')) <> ''
+    ORDER BY major_study ASC
+    `,
+    [programId]
+  );
+
+  if (normalized.rowCount && normalized.rowCount > 0) {
+    return normalized.rows.map((r) => ({
+      major_study: r.major_study,
+      source: "program_curriculums",
+    }));
+  }
+
+  // Fallback source: normalized program-major discipline link table.
+  const linked = await pool.query(
+    `
+    SELECT DISTINCT
+      TRIM(cmd.major_discipline) AS major_study
+    FROM academic_program_major_disciplines apmd
+    JOIN ched_major_disciplines cmd
+      ON cmd.id = apmd.ched_major_discipline_id
+    WHERE apmd.academic_program_id = $1
+      AND COALESCE(apmd.is_inactive, false) = false
+      AND TRIM(COALESCE(cmd.major_discipline, '')) <> ''
+    ORDER BY major_study ASC
+    `,
+    [programId]
+  );
+
+  if (linked.rowCount && linked.rowCount > 0) {
+    return linked.rows.map((r) => ({
+      major_study: r.major_study,
+      source: "academic_program_major_disciplines",
+    }));
+  }
+
+  return [];
 };

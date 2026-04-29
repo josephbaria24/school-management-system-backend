@@ -18,6 +18,7 @@ router.delete("/ched-major-disciplines/:id", ched.remove);
 
 router.get("/academic-programs", programs.getAll);
 router.get("/academic-programs/:id", programs.getById);
+router.get("/academic-programs/:id/major-studies", programs.getMajorStudies);
 router.post("/academic-programs", programs.create);
 router.put("/academic-programs/:id", programs.update);
 router.delete("/academic-programs/:id", programs.remove);
