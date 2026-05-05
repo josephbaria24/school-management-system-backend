@@ -111,3 +111,106 @@ export const applyApplicationStatusAction = async (req: Request, res: Response) 
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+
+export const getCollegeEntranceRankingSummary = async (req: Request, res: Response) => {
+  try {
+    const termId = req.query.term_id ? parseInt(String(req.query.term_id), 10) : undefined;
+    const campusId = req.query.campus_id ? parseInt(String(req.query.campus_id), 10) : undefined;
+    const courseId = req.query.course_id ? parseInt(String(req.query.course_id), 10) : undefined;
+    const majorId = req.query.major_id ? parseInt(String(req.query.major_id), 10) : undefined;
+    const majorStudy = typeof req.query.major_study === "string" ? req.query.major_study.trim() : undefined;
+    const choiceNoRaw = req.query.choice_no ? parseInt(String(req.query.choice_no), 10) : 1;
+    const choiceNo = [1, 2, 3, 4].includes(choiceNoRaw) ? (choiceNoRaw as 1 | 2 | 3 | 4) : 1;
+    const row = await svc.getCollegeEntranceRankingSummary({
+      termId,
+      campusId,
+      courseId,
+      majorId,
+      majorStudy,
+      choiceNo,
+    });
+    res.json(row);
+  } catch (err) {
+    console.error("admissionApplicantProfile getCollegeEntranceRankingSummary:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const listTestingSchedules = async (req: Request, res: Response) => {
+  try {
+    const termId = req.query.term_id ? parseInt(String(req.query.term_id), 10) : undefined;
+    const campusId = req.query.campus_id ? parseInt(String(req.query.campus_id), 10) : undefined;
+    const batchId = typeof req.query.batch_id === "string" ? req.query.batch_id.trim() : undefined;
+    const rows = await svc.listAdmissionTestingSchedules({ termId, campusId, batchId });
+    res.json(rows);
+  } catch (err) {
+    console.error("admissionApplicantProfile listTestingSchedules:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const createTestingSchedule = async (req: Request, res: Response) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+    const row = await svc.createAdmissionTestingSchedule({
+      termId: body.term_id ? Number(body.term_id) : null,
+      campusId: body.campus_id ? Number(body.campus_id) : null,
+      testingCenter: typeof body.testing_center === "string" ? body.testing_center : "",
+      programClass: typeof body.program_class === "string" ? body.program_class : "",
+      batchName: typeof body.batch_name === "string" ? body.batch_name : "",
+      applicationType: typeof body.application_type === "string" ? body.application_type : "",
+      testingRoom: typeof body.testing_room === "string" ? body.testing_room : "",
+      testingDate: typeof body.testing_date === "string" ? body.testing_date : null,
+      timeFrom: typeof body.time_from === "string" ? body.time_from : "",
+      timeTo: typeof body.time_to === "string" ? body.time_to : "",
+      session: typeof body.session === "string" ? body.session : "",
+      limitCount: body.limit_count ? Number(body.limit_count) : 0,
+      batchId: typeof body.batch_id === "string" ? body.batch_id : "",
+    });
+    res.status(201).json(row);
+  } catch (err) {
+    console.error("admissionApplicantProfile createTestingSchedule:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const updateTestingSchedule = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+    const body = req.body as Record<string, unknown>;
+    const row = await svc.updateAdmissionTestingSchedule(id, {
+      termId: body.term_id ? Number(body.term_id) : null,
+      campusId: body.campus_id ? Number(body.campus_id) : null,
+      testingCenter: typeof body.testing_center === "string" ? body.testing_center : "",
+      programClass: typeof body.program_class === "string" ? body.program_class : "",
+      batchName: typeof body.batch_name === "string" ? body.batch_name : "",
+      applicationType: typeof body.application_type === "string" ? body.application_type : "",
+      testingRoom: typeof body.testing_room === "string" ? body.testing_room : "",
+      testingDate: typeof body.testing_date === "string" ? body.testing_date : null,
+      timeFrom: typeof body.time_from === "string" ? body.time_from : "",
+      timeTo: typeof body.time_to === "string" ? body.time_to : "",
+      session: typeof body.session === "string" ? body.session : "",
+      limitCount: body.limit_count ? Number(body.limit_count) : 0,
+      batchId: typeof body.batch_id === "string" ? body.batch_id : "",
+    });
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json(row);
+  } catch (err) {
+    console.error("admissionApplicantProfile updateTestingSchedule:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const deleteTestingSchedule = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+    const row = await svc.deleteAdmissionTestingSchedule(id);
+    if (!row) return res.status(404).json({ error: "Not found" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("admissionApplicantProfile deleteTestingSchedule:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};

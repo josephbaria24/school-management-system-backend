@@ -638,3 +638,241 @@ export const applyApplicationStatusAction = async (
   );
   return updated.rows[0] ?? null;
 };
+
+export const ensureAdmissionTestingSchedulesTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS admission_testing_schedules (
+      id SERIAL PRIMARY KEY,
+      term_id INTEGER,
+      campus_id INTEGER,
+      testing_center VARCHAR(80) NOT NULL DEFAULT '',
+      program_class VARCHAR(80) NOT NULL DEFAULT '',
+      batch_name VARCHAR(120) NOT NULL DEFAULT '',
+      application_type VARCHAR(80) NOT NULL DEFAULT '',
+      testing_room VARCHAR(80) NOT NULL DEFAULT '',
+      testing_date DATE,
+      time_from VARCHAR(20) NOT NULL DEFAULT '',
+      time_to VARCHAR(20) NOT NULL DEFAULT '',
+      session VARCHAR(10) NOT NULL DEFAULT '',
+      limit_count INTEGER NOT NULL DEFAULT 0,
+      batch_id VARCHAR(40) NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+};
+
+type TestingScheduleInput = {
+  termId?: number | null;
+  campusId?: number | null;
+  testingCenter?: string;
+  programClass?: string;
+  batchName?: string;
+  applicationType?: string;
+  testingRoom?: string;
+  testingDate?: string | null;
+  timeFrom?: string;
+  timeTo?: string;
+  session?: string;
+  limitCount?: number | null;
+  batchId?: string;
+};
+
+export const listAdmissionTestingSchedules = async (filters?: {
+  termId?: number;
+  campusId?: number;
+  batchId?: string;
+}) => {
+  await ensureAdmissionTestingSchedulesTable();
+  const where: string[] = [];
+  const params: Array<string | number> = [];
+  if (Number.isFinite(filters?.termId)) {
+    where.push(`term_id = $${params.length + 1}`);
+    params.push(Number(filters?.termId));
+  }
+  if (Number.isFinite(filters?.campusId)) {
+    where.push(`campus_id = $${params.length + 1}`);
+    params.push(Number(filters?.campusId));
+  }
+  if (asText(filters?.batchId)) {
+    where.push(`batch_id = $${params.length + 1}`);
+    params.push(asText(filters?.batchId));
+  }
+  const r = await pool.query(
+    `
+    SELECT id, term_id, campus_id, testing_center, program_class, batch_name, application_type,
+           testing_room, testing_date, time_from, time_to, session, limit_count, batch_id,
+           created_at, updated_at
+    FROM admission_testing_schedules
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ORDER BY testing_date DESC NULLS LAST, id DESC
+    `,
+    params
+  );
+  return r.rows;
+};
+
+export const createAdmissionTestingSchedule = async (input: TestingScheduleInput) => {
+  await ensureAdmissionTestingSchedulesTable();
+  const r = await pool.query(
+    `
+    INSERT INTO admission_testing_schedules (
+      term_id, campus_id, testing_center, program_class, batch_name, application_type,
+      testing_room, testing_date, time_from, time_to, session, limit_count, batch_id,
+      created_at, updated_at
+    ) VALUES (
+      $1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11,$12,$13,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+    )
+    RETURNING *
+    `,
+    [
+      input.termId ?? null,
+      input.campusId ?? null,
+      asText(input.testingCenter),
+      asText(input.programClass),
+      asText(input.batchName),
+      asText(input.applicationType),
+      asText(input.testingRoom),
+      asText(input.testingDate) || null,
+      asText(input.timeFrom),
+      asText(input.timeTo),
+      asText(input.session),
+      Number.isFinite(input.limitCount) ? Number(input.limitCount) : 0,
+      asText(input.batchId),
+    ]
+  );
+  return r.rows[0];
+};
+
+export const updateAdmissionTestingSchedule = async (id: number, input: TestingScheduleInput) => {
+  await ensureAdmissionTestingSchedulesTable();
+  const r = await pool.query(
+    `
+    UPDATE admission_testing_schedules
+    SET
+      term_id = $2,
+      campus_id = $3,
+      testing_center = $4,
+      program_class = $5,
+      batch_name = $6,
+      application_type = $7,
+      testing_room = $8,
+      testing_date = $9::date,
+      time_from = $10,
+      time_to = $11,
+      session = $12,
+      limit_count = $13,
+      batch_id = $14,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+    RETURNING *
+    `,
+    [
+      id,
+      input.termId ?? null,
+      input.campusId ?? null,
+      asText(input.testingCenter),
+      asText(input.programClass),
+      asText(input.batchName),
+      asText(input.applicationType),
+      asText(input.testingRoom),
+      asText(input.testingDate) || null,
+      asText(input.timeFrom),
+      asText(input.timeTo),
+      asText(input.session),
+      Number.isFinite(input.limitCount) ? Number(input.limitCount) : 0,
+      asText(input.batchId),
+    ]
+  );
+  return r.rows[0] ?? null;
+};
+
+export const deleteAdmissionTestingSchedule = async (id: number) => {
+  await ensureAdmissionTestingSchedulesTable();
+  const r = await pool.query(
+    `
+    DELETE FROM admission_testing_schedules
+    WHERE id = $1
+    RETURNING id
+    `,
+    [id]
+  );
+  return r.rows[0] ?? null;
+};
+
+type RankingSummaryFilters = {
+  termId?: number;
+  campusId?: number;
+  courseId?: number;
+  majorId?: number;
+  majorStudy?: string;
+  choiceNo?: 1 | 2 | 3 | 4;
+};
+
+export const getCollegeEntranceRankingSummary = async (filters: RankingSummaryFilters) => {
+  await ensureAdmissionApplicantProfilesTable();
+  const choiceNo = filters.choiceNo && [1, 2, 3, 4].includes(filters.choiceNo) ? filters.choiceNo : 1;
+  const campusCol = `a.choice${choiceNo}_campus_id`;
+  const courseCol = `a.choice${choiceNo}_course`;
+  const majorCol = `a.choice${choiceNo}_course_major`;
+
+  const params: Array<number> = [];
+  const where: string[] = [];
+  if (Number.isFinite(filters.termId)) {
+    where.push(`a.term_id = $${params.length + 1}`);
+    params.push(Number(filters.termId));
+  }
+  if (Number.isFinite(filters.campusId)) {
+    where.push(`${campusCol} = $${params.length + 1}`);
+    params.push(Number(filters.campusId));
+  }
+  if (Number.isFinite(filters.courseId)) {
+    where.push(`${courseCol} = $${params.length + 1}`);
+    params.push(Number(filters.courseId));
+  }
+  if (Number.isFinite(filters.majorId)) {
+    where.push(`${majorCol} = $${params.length + 1}`);
+    params.push(Number(filters.majorId));
+  }
+  if (asText(filters.majorStudy)) {
+    where.push(`EXISTS (
+      SELECT 1
+      FROM ched_major_disciplines cmd
+      WHERE cmd.id = ${majorCol}
+        AND TRIM(cmd.major_discipline) = $${params.length + 1}
+    )`);
+    params.push(asText(filters.majorStudy));
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const r = await pool.query(
+    `
+    SELECT
+      COUNT(*)::int AS total_applications,
+      COUNT(*) FILTER (WHERE UPPER(TRIM(COALESCE(a.gender, ''))) = 'M')::int AS male_count,
+      COUNT(*) FILTER (WHERE UPPER(TRIM(COALESCE(a.gender, ''))) = 'F')::int AS female_count,
+      MIN(a.app_date) AS min_app_date,
+      MAX(a.app_date) AS max_app_date
+    FROM admission_applicants a
+    ${whereSql}
+    `,
+    params
+  );
+
+  const row = r.rows[0] ?? {
+    total_applications: 0,
+    male_count: 0,
+    female_count: 0,
+    min_app_date: null,
+    max_app_date: null,
+  };
+  return {
+    total_applications: Number(row.total_applications ?? 0),
+    total_course_applicant: Number(row.total_applications ?? 0),
+    male_count: Number(row.male_count ?? 0),
+    female_count: Number(row.female_count ?? 0),
+    quota_limit: null as number | null,
+    min_app_date: row.min_app_date ?? null,
+    max_app_date: row.max_app_date ?? null,
+  };
+};
