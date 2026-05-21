@@ -816,7 +816,7 @@ export const getCollegeEntranceRankingSummary = async (filters: RankingSummaryFi
   const courseCol = `a.choice${choiceNo}_course`;
   const majorCol = `a.choice${choiceNo}_course_major`;
 
-  const params: Array<number> = [];
+  const params: Array<number | string> = [];
   const where: string[] = [];
   if (Number.isFinite(filters.termId)) {
     where.push(`a.term_id = $${params.length + 1}`);

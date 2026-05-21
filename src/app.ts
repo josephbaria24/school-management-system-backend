@@ -24,6 +24,7 @@ import programCurriculumsRoutes from "./routes/programCurriculums.routes.js";
 import coursesMasterListRoutes from "./routes/coursesMasterList.routes.js";
 import subjectLookupsRoutes from "./routes/subjectLookups.routes.js";
 import admissionApplicantProfileRoutes from "./routes/admissionApplicantProfile.routes.js";
+import registrarRoutes from "./routes/registrar.routes.js";
 
 dotenv.config();
 
@@ -129,6 +130,9 @@ app.use("/api", subjectLookupsRoutes);
 
 // Admission applicant profile (DB-backed form payload)
 app.use("/api", admissionApplicantProfileRoutes);
+
+// Registrar configuration (scholastic delinquency, grading, add/drop)
+app.use("/api", registrarRoutes);
 
 app.get("/health", (req: Request, res: Response) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
